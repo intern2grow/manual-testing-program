@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Buggy Task Management Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+        }
+
+        .project-card {
+            margin-bottom: 20px;
+        }
+
+        .task-completed {
+            text-decoration: line-through;
+            color: gray;
+        }
+
+        .modal-backdrop {
+            display: none;
+        }
+
+        /* hides backdrop -> modal layering bug */
+        .note {
+            font-size: 0.9em;
+            color: gray;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1 class="mb-2">Task Management Dashboard</h1>
+        <p class="note">💡 Note: All your projects and tasks are stored in <b>LocalStorage</b> so you never lose them.
+        </p>
+
+        <!-- Project Form -->
+        <div class="card p-3 mb-4">
+            <h5>Create New Project</h5>
+            <div class="d-flex">
+                <input id="projectTitle" type="text" class="form-control me-2" placeholder="Project Title">
+                <button id="addProjectBtn" class="btn btn-primary">Add Project</button>
+            </div>
+        </div>
+
+        <!-- Projects Section -->
+        <div id="projectsContainer"></div>
+    </div>
+
+    <!-- Edit Task Modal -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="editTaskTitle" class="form-control mb-2" placeholder="Task Title">
+                    <textarea id="editTaskDescription" class="form-control mb-2"
+                        placeholder="Task Description"></textarea>
+                    <select id="editTaskPriority" class="form-control">
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button id="saveTaskChanges" class="btn btn-success">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let projects = [
+            {
+                title: "Website Redesign",
+                tasks: [
+                    { title: "Create wireframes", description: "Initial sketches for homepage", priority: "High", completed: true },
+                    { title: "Setup project repo", description: "Initialize GitHub repository", priority: "Medium", completed: false },
+                    { title: "Design landing page", description: "Work on hero section and CTA", priority: "High", completed: false }
+                ]
+            },
+            {
+                title: "Mobile App Development",
+                tasks: [
+                    { title: "Setup dev environment", description: "Install dependencies and setup emulator", priority: "Low", completed: true },
+                    { title: "Implement login screen", description: "Basic authentication flow", priority: "High", completed: false },
+                    { title: "Add dark mode", description: "Theme toggle for accessibility", priority: "Medium", completed: false }
+                ]
+            },
+            {
+                title: "Marketing Campaign",
+                tasks: [
+                    { title: "Write blog post", description: "SEO optimized article", priority: "Medium", completed: false },
+                    { title: "Prepare newsletter", description: "Monthly update for subscribers", priority: "Low", completed: true },
+                    { title: "Social media plan", description: "Schedule posts for the next month", priority: "High", completed: false }
+                ]
+            }
+        ];
+
+        let currentEditTask = null;
+
+        const projectsContainer = document.getElementById("projectsContainer");
+        const addProjectBtn = document.getElementById("addProjectBtn");
+
+        addProjectBtn.addEventListener("click", () => {
+            const title = document.getElementById("projectTitle").value.trim();
+            if (!title) return;
+            projects.push({ title, tasks: [] });
+            renderProjects();
+            document.getElementById("projectTitle").value = "";
+        });
+
+        function renderProjects() {
+            projectsContainer.innerHTML = "";
+            projects.forEach((project, projectIndex) => {
+                const projectCard = document.createElement("div");
+                projectCard.className = "card project-card";
+                projectCard.innerHTML = `
+          <div class="card-body">
+            <h5 class="card-title">${project.title}</h5>
+            <div class="mb-2">
+              <input type="text" id="taskTitle-${projectIndex}" placeholder="Task Title" class="form-control mb-2">
+              <textarea id="taskDesc-${projectIndex}" placeholder="Task Description" class="form-control mb-2"></textarea>
+              <select id="taskPriority-${projectIndex}" class="form-control mb-2">
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+              </select>
+              <button class="btn btn-sm btn-primary" onclick="addTask(${projectIndex})">Add Task</button>
+            </div>
+            <div>
+              <h6>Tasks</h6>
+              <ul class="list-group" id="taskList-${projectIndex}"></ul>
+            </div>
+          </div>
+        `;
+                projectsContainer.appendChild(projectCard);
+                renderTasks(projectIndex);
+            });
+        }
+
+        function addTask(projectIndex) {
+            const title = document.getElementById(`taskTitle-${projectIndex}`).value.trim();
+            const description = document.getElementById(`taskDesc-${projectIndex}`).value.trim();
+            const priority = document.getElementById(`taskPriority-${projectIndex}`).value;
+            if (!title) return;
+            projects[projectIndex].tasks.push({ title, description, priority, completed: false });
+            renderTasks(projectIndex);
+        }
+
+        function renderTasks(projectIndex) {
+            const taskList = document.getElementById(`taskList-${projectIndex}`);
+            taskList.innerHTML = "";
+            projects[projectIndex].tasks.forEach((task, taskIndex) => {
+                const li = document.createElement("li");
+                li.className = "list-group-item d-flex justify-content-between align-items-center";
+                li.innerHTML = `
+          <div>
+            <input type="checkbox" class="form-check-input me-2" onchange="toggleTask(${projectIndex}, ${taskIndex})" ${task.completed ? "checked" : ""}>
+            <span class="${task.completed ? "task-completed" : ""}">${task.title} - <small>${task.priority}</small></span>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-warning me-2" onclick="editTask(${projectIndex}, ${taskIndex})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTask(${projectIndex}, ${taskIndex})">Delete</button>
+          </div>
+        `;
+                taskList.appendChild(li);
+            });
+        }
+
+        function toggleTask(projectIndex, taskIndex) {
+            // BUG: Toggling one sometimes affects others
+            projects[projectIndex].tasks.forEach(task => task.completed = !task.completed);
+            renderTasks(projectIndex);
+        }
+
+        function editTask(projectIndex, taskIndex) {
+            currentEditTask = { projectIndex, taskIndex };
+            const task = projects[projectIndex].tasks[projects[projectIndex].tasks.length - 1]; // BUG: always loads last task
+            document.getElementById("editTaskTitle").value = task.title;
+            document.getElementById("editTaskDescription").value = task.description;
+            document.getElementById("editTaskPriority").value = task.priority;
+            new bootstrap.Modal(document.getElementById("editTaskModal")).show();
+        }
+
+        document.getElementById("saveTaskChanges").addEventListener("click", () => {
+            if (!currentEditTask) return;
+            const { projectIndex, taskIndex } = currentEditTask;
+            const task = projects[projectIndex].tasks[taskIndex];
+            task.title = document.getElementById("editTaskTitle").value;
+            task.description = document.getElementById("editTaskDescription").value;
+            task.priority = document.getElementById("editTaskPriority").value;
+            renderTasks(projectIndex);
+            currentEditTask = null;
+            bootstrap.Modal.getInstance(document.getElementById("editTaskModal")).hide();
+        });
+
+        function deleteTask(projectIndex, taskIndex) {
+            // BUG: Deletes all tasks instead of one
+            projects[projectIndex].tasks = [];
+            renderTasks(projectIndex);
+        }
+
+        // Initial Render
+        renderProjects();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

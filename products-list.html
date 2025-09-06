@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Buggy Products List</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: #f7fbff;
+        }
+
+        .product-card {
+            min-height: 220px;
+        }
+
+        .wishlist-active {
+            color: #e0245e;
+        }
+
+        .cursor-pointer {
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-light bg-white shadow-sm mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">Intern2Grow Shop</a>
+            <div>
+                <span class="me-3">Cart: <span id="cartCount">0</span></span>
+                <button class="btn btn-outline-primary btn-sm">View Cart</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mb-4">
+        <div class="row g-3 align-items-center mb-3">
+            <div class="col-md-4">
+                <input id="searchInput" class="form-control" placeholder="Search products...">
+            </div>
+            <div class="col-md-2">
+                <select id="categoryFilter" class="form-select">
+                    <option value="">All Categories</option>
+                    <option value="tools">Tools</option>
+                    <option value="books">Books</option>
+                    <option value="gadgets">Gadgets</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="input-group">
+                    <input id="minPrice" type="number" class="form-control" placeholder="Min price">
+                    <input id="maxPrice" type="number" class="form-control" placeholder="Max price">
+                </div>
+            </div>
+            <div class="col-md-3 text-end">
+                <button id="clearFilters" class="btn btn-sm btn-secondary">Clear Filters</button>
+            </div>
+        </div>
+
+        <div id="productsRow" class="row gy-4"></div>
+
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul id="pagination" class="pagination justify-content-center"></ul>
+        </nav>
+    </div>
+
+    <script>
+        // ============ PRODUCTS (static JSON embedded) ============
+        const PRODUCTS = [
+            { id: 1, title: "Multi Tool Pro", price: 29, category: "tools", img: "" },
+            { id: 2, title: "Learning JS Book", price: 15, category: "books", img: "" },
+            { id: 3, title: "Wireless Earbuds", price: 49, category: "gadgets", img: "" },
+            { id: 4, title: "Mechanical Pencil Set", price: 5, category: "tools", img: "" },
+            { id: 5, title: "React Handbook", price: 20, category: "books", img: "" },
+            { id: 6, title: "Smart Watch", price: 199, category: "gadgets", img: "" },
+            { id: 7, title: "USB-C Cable", price: 8, category: "gadgets", img: "" },
+            { id: 8, title: "Notebook Classic", price: 4, category: "tools", img: "" },
+            { id: 9, title: "CSS Design Patterns", price: 18, category: "books", img: "" },
+            { id: 10, title: "Portable Charger", price: 35, category: "gadgets", img: "" },
+            { id: 11, title: "Hackers Guide", price: 27, category: "books", img: "" },
+            { id: 12, title: "Precision Screwdriver", price: 12, category: "tools", img: "" },
+            { id: 13, title: "Noise Cancelling Headphones", price: 129, category: "gadgets", img: "" },
+            { id: 14, title: "TypeScript Mastery", price: 22, category: "books", img: "" },
+            { id: 15, title: "LED Desk Lamp", price: 45, category: "gadgets", img: "" },
+            { id: 16, title: "Toolkit Mini", price: 11, category: "tools", img: "" },
+            { id: 17, title: "Design Systems Book", price: 30, category: "books", img: "" },
+            { id: 18, title: "Bluetooth Speaker", price: 55, category: "gadgets", img: "" },
+            { id: 19, title: "Wire Stripper", price: 9, category: "tools", img: "" },
+            { id: 20, title: "Algorithms Book", price: 40, category: "books", img: "" }
+        ];
+
+        // ============ Globals ============
+        let currentPage = 1;
+        const PAGE_SIZE = 6;
+        let filteredProducts = [...PRODUCTS];
+        let cart = [];            // cart items {id, qty}
+        let wishlist = new Set(); // product ids
+
+        // Intentionally introduced bug: we save wishlist under 'wishlist' but when loading we incorrectly use 'wish_list' (typo).
+        // This produces non-persistence across reloads.
+        function saveWishlist() {
+            localStorage.setItem('wishlist', JSON.stringify([...wishlist]));
+        }
+
+        function loadWishlist() {
+            // BUG: reading from wrong key 'wish_list' (should be 'wishlist') — so load returns null -> wishlist remains empty.
+            const saved = localStorage.getItem('wish_list');
+            if (saved) {
+                try {
+                    const arr = JSON.parse(saved);
+                    wishlist = new Set(arr);
+                } catch (e) { wishlist = new Set(); }
+            }
+        }
+
+        // ============ Render ============
+        function renderProducts() {
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const pageItems = filteredProducts.slice(start, start + PAGE_SIZE);
+
+            const row = document.getElementById('productsRow');
+            row.innerHTML = '';
+
+            pageItems.forEach(p => {
+                const col = document.createElement('div');
+                col.className = 'col-md-4';
+                col.innerHTML = `
+          <div class="card product-card shadow-sm">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h5 class="card-title mb-0">${p.title}</h5>
+                <div>
+                  <span class="me-2 fw-bold">$${p.price}</span>
+                  <span class="cursor-pointer" data-id="${p.id}" title="Toggle wishlist">
+                    <i class="bi-heart wishlist-icon ${wishlist.has(p.id) ? 'wishlist-active' : ''}">♥</i>
+                  </span>
+                </div>
+              </div>
+              <p class="card-text text-muted mb-3">Category: ${p.category}</p>
+              <div class="mt-auto d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary add-cart" data-id="${p.id}">Add to cart</button>
+                <button class="btn btn-sm btn-outline-secondary view-btn" data-id="${p.id}">View</button>
+              </div>
+            </div>
+          </div>
+        `;
+                row.appendChild(col);
+            });
+
+            // attach handlers
+            document.querySelectorAll('.add-cart').forEach(btn => btn.addEventListener('click', e => {
+                const id = Number(e.currentTarget.dataset.id);
+                addToCart(id);
+            }));
+
+            document.querySelectorAll('.wishlist-icon').forEach(el => {
+                el.parentElement.addEventListener('click', (e) => {
+                    const id = Number(el.parentElement.dataset.id);
+                    toggleWishlist(id, el);
+                });
+            });
+
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE) || 1;
+            const pager = document.getElementById('pagination');
+            pager.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement('li');
+                li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                li.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    currentPage = i;
+                    renderProducts();
+                });
+                pager.appendChild(li);
+            }
+        }
+
+        // ============ Cart (bug intentionally introduced) ============
+        function addToCart(productId) {
+            const found = cart.find(c => c.id === productId);
+            if (found) found.qty++;
+            else cart.push({ id: productId, qty: 1 });
+
+            // BUG: We forgot to update the cart count UI here.
+            // updateCartCount(); <-- intentionally missing
+            console.log('Added to cart', productId, cart);
+        }
+
+        function updateCartCount() {
+            const el = document.getElementById('cartCount');
+            el.innerText = cart.reduce((s, item) => s + item.qty, 0);
+        }
+
+        // ============ Wishlist ============
+        function toggleWishlist(id, iconEl) {
+            if (wishlist.has(id)) {
+                wishlist.delete(id);
+                iconEl.classList.remove('wishlist-active');
+            } else {
+                wishlist.add(id);
+                iconEl.classList.add('wishlist-active');
+            }
+            saveWishlist();
+        }
+
+        // ============ Filtering & Search ============
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value;
+            const category = document.getElementById('categoryFilter').value;
+            const min = document.getElementById('minPrice').value;
+            const max = document.getElementById('maxPrice').value;
+
+            // Start from full products list
+            filteredProducts = PRODUCTS.filter(p => {
+                // BUG: search is case-sensitive -> misses results when casing differs
+                const matchesSearch = searchTerm ? (p.title.indexOf(searchTerm) > -1) : true;
+
+                const matchesCategory = category ? p.category === category : true;
+
+                // BUG: price filter uses OR instead of AND, so it allows many wrong items
+                let matchesPrice = true;
+                if (min || max) {
+                    // using OR means if either boundary passes, the product is included (incorrect)
+                    if (min && max) {
+                        matchesPrice = (p.price >= Number(min)) || (p.price <= Number(max)); // <-- BUG: should be &&
+                    } else if (min) {
+                        matchesPrice = p.price >= Number(min);
+                    } else if (max) {
+                        matchesPrice = p.price <= Number(max);
+                    }
+                }
+
+                return matchesSearch && matchesCategory && matchesPrice;
+            });
+
+            currentPage = 1;
+            renderProducts();
+        }
+
+        // ============ Wire UI ============
+        document.getElementById('searchInput').addEventListener('input', () => {
+            // Intentionally not debouncing — search will run on every key press.
+            applyFilters();
+        });
+
+        document.getElementById('categoryFilter').addEventListener('change', applyFilters);
+        document.getElementById('minPrice').addEventListener('input', applyFilters);
+        document.getElementById('maxPrice').addEventListener('input', applyFilters);
+        document.getElementById('clearFilters').addEventListener('click', () => {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('minPrice').value = '';
+            document.getElementById('maxPrice').value = '';
+            applyFilters();
+        });
+
+        // ============ Init ============
+        function init() {
+            loadWishlist();     // BUG: reads wrong key -> wishlist stays empty
+            applyFilters();
+            // Intentionally *not* calling updateCartCount() so initial cart UI stays 0 even if cart has items.
+        }
+
+        init();
+
+        // expose some debug helpers to the console
+        window.__debug = {
+            PRODUCTS,
+            cart,
+            wishlist,
+            applyFilters,
+            updateCartCount,
+            saveWishlist,
+            loadWishlist
+        };
+    </script>
+
+    <!-- bootstrap icons fallback (simple) -->
+    <script>
+        // small inline shim for the heart icon markup used in the template (we used plain ♥ unicode inside).
+    </script>
+</body>
+
+</html>
